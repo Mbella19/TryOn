@@ -143,7 +143,7 @@ function StyleDuels() {
                         <NeoCard className="bg-white rotate-1 flex-1 flex flex-col min-h-0 p-2 md:p-4">
                             <div className="flex-1 min-h-0 relative border-2 border-black mb-2 md:mb-4">
                                 <img
-                                    src={`http://localhost:5001${entries[0].saved_look_url}`}
+                                    src={entries[0].saved_look_url}
                                     alt="Entry"
                                     className="absolute inset-0 w-full h-full object-cover"
                                 />
@@ -185,7 +185,7 @@ function StyleDuels() {
                             {savedLooks.map(look => (
                                 <div key={look.id} className="border-2 border-black p-2 cursor-pointer hover:bg-gray-100" onClick={() => handleEnterChallenge(look.id)}>
                                     <img
-                                        src={`http://localhost:5001/uploads/results/${look.result_filename}`}
+                                        src={`/uploads/results/${look.result_filename}`}
                                         alt="Look"
                                         className="w-full h-32 object-cover mb-2"
                                     />

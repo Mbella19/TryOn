@@ -153,7 +153,7 @@ function TryOnStudio() {
                   `}
                 >
                   <img
-                    src={`http://localhost:5001/uploads/${activeTab === 'photos' ? 'photos' : 'clothing'}/${item.filename}`}
+                    src={`/uploads/${activeTab === 'photos' ? 'photos' : 'clothing'}/${item.filename}`}
                     alt="Item"
                     className="w-full h-full object-cover"
                   />

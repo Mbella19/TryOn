@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { clothingAPI } from '../services/api'
 import NeoButton from '../components/ui/NeoButton'
 import NeoCard from '../components/ui/NeoCard'
-import { useAuthStore } from '../store/authStore'
 import { Shirt } from 'lucide-react'
 
 const CATEGORIES = ['all', 'tops', 'bottoms', 'dresses', 'outerwear', 'accessories']
@@ -24,7 +23,6 @@ function Wardrobe() {
   const [refinementPrompt, setRefinementPrompt] = useState('')
   const [isRefining, setIsRefining] = useState(false)
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
-  const { token } = useAuthStore()
 
   useEffect(() => {
     fetchItems()
@@ -39,6 +37,10 @@ function Wardrobe() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const getErrorMessage = (error, fallback) => {
+    return error?.response?.data?.error || error?.message || fallback
   }
 
   const handleUpload = async (e) => {
@@ -60,31 +62,23 @@ function Wardrobe() {
         setShowUploadModal(false)
         setPrice('')
       } else if (addMode === 'text') {
-        const response = await fetch('http://localhost:5001/api/clothing/generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ description: textDescription, category: uploadCategory })
-        })
-        const data = await response.json()
-        if (response.ok) {
-          setGeneratedPreview({
-            url: data.temp_image_url,
-            filename: data.filename
-          })
-        } else {
-          alert(data.error || 'Generation failed')
+        if (!textDescription.trim()) {
+          alert('Please enter a description first')
+          return
         }
+
+        const { data } = await clothingAPI.generateFromText({
+          description: textDescription,
+          category: uploadCategory
+        })
+        setGeneratedPreview({
+          url: data.temp_image_url,
+          filename: data.filename
+        })
       } else if (addMode === 'link') {
-        await fetch('http://localhost:5001/api/clothing/import', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ url: linkUrl, category: uploadCategory })
+        await clothingAPI.importFromUrl({
+          url: linkUrl,
+          category: uploadCategory
         })
         await fetchItems()
         setShowUploadModal(false)
@@ -96,7 +90,7 @@ function Wardrobe() {
       }
     } catch (error) {
       console.error('Error adding clothing:', error)
-      alert('Failed to add clothing item')
+      alert(getErrorMessage(error, 'Failed to add clothing item'))
     } finally {
       setUploading(false)
     }
@@ -106,30 +100,18 @@ function Wardrobe() {
     if (!refinementPrompt) return
     setIsRefining(true)
     try {
-      const response = await fetch('http://localhost:5001/api/clothing/refine', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          filename: generatedPreview.filename,
-          refinement_prompt: refinementPrompt
-        })
+      const { data } = await clothingAPI.refineGenerated({
+        filename: generatedPreview.filename,
+        refinement_prompt: refinementPrompt
       })
-      const data = await response.json()
-      if (response.ok) {
-        setGeneratedPreview({
-          url: data.temp_image_url,
-          filename: data.filename
-        })
-        setRefinementPrompt('')
-      } else {
-        alert(data.error || 'Refinement failed')
-      }
+      setGeneratedPreview({
+        url: data.temp_image_url,
+        filename: data.filename
+      })
+      setRefinementPrompt('')
     } catch (error) {
       console.error('Refinement error:', error)
-      alert('Failed to refine image')
+      alert(getErrorMessage(error, 'Failed to refine image'))
     } finally {
       setIsRefining(false)
     }
@@ -138,31 +120,19 @@ function Wardrobe() {
   const handleSaveGenerated = async () => {
     setUploading(true)
     try {
-      const response = await fetch('http://localhost:5001/api/clothing/save-generated', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          filename: generatedPreview.filename,
-          category: uploadCategory
-        })
+      await clothingAPI.saveGenerated({
+        filename: generatedPreview.filename,
+        category: uploadCategory
       })
 
-      if (response.ok) {
-        await fetchItems()
-        setShowUploadModal(false)
-        setGeneratedPreview(null)
-        setTextDescription('')
-        setRefinementPrompt('')
-      } else {
-        const data = await response.json()
-        alert(data.error || 'Failed to save item')
-      }
+      await fetchItems()
+      setShowUploadModal(false)
+      setGeneratedPreview(null)
+      setTextDescription('')
+      setRefinementPrompt('')
     } catch (error) {
       console.error('Save error:', error)
-      alert('Failed to save item')
+      alert(getErrorMessage(error, 'Failed to save item'))
     } finally {
       setUploading(false)
     }
@@ -235,7 +205,7 @@ function Wardrobe() {
               <div key={item.id} className="border-3 border-black bg-white p-2 shadow-neo hover:-translate-y-1 hover:translate-x-1 transition-transform flex flex-col">
                 <div className="aspect-square overflow-hidden border-2 border-black mb-2 relative group">
                   <img
-                    src={`http://localhost:5001/uploads/clothing/${item.filename}`}
+                    src={`/uploads/clothing/${item.filename}`}
                     alt={item.category}
                     className="w-full h-full object-cover"
                   />
@@ -332,7 +302,7 @@ function Wardrobe() {
                 <div className="space-y-2">
                   <div className="border-2 border-black bg-white p-1 flex justify-center bg-gray-50">
                     <img
-                      src={`http://localhost:5001${generatedPreview.url}`}
+                      src={generatedPreview.url}
                       alt="Generated Preview"
                       className="h-48 w-auto object-contain"
                     />

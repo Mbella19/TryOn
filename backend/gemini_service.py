@@ -16,6 +16,15 @@ class GeminiService:
         os.environ['GOOGLE_API_KEY'] = api_key
         self.client = genai.Client(api_key=api_key)
     
+    def _resize_image_if_needed(self, image, max_size=1024):
+        """Resize image if it exceeds max_size, preserving aspect ratio"""
+        if max(image.size) > max_size:
+            ratio = max_size / max(image.size)
+            new_size = (int(image.width * ratio), int(image.height * ratio))
+            print(f"📉 Resizing image from {image.size} to {new_size}")
+            return image.resize(new_size, Image.Resampling.LANCZOS)
+        return image
+    
     def virtual_tryon(self, person_image_path, clothing_image_paths, prompt="try on clothes"):
         """
         Generate virtual try-on using Gemini 2.5 Flash Image Generation
@@ -29,12 +38,14 @@ class GeminiService:
             Generated image as PIL Image object
         """
         try:
-            # Load images
+            # Load and resize images
             person_image = Image.open(person_image_path)
+            person_image = self._resize_image_if_needed(person_image)
+            
             if isinstance(clothing_image_paths, (list, tuple, set)):
-                clothing_images = [Image.open(path) for path in clothing_image_paths]
+                clothing_images = [self._resize_image_if_needed(Image.open(path)) for path in clothing_image_paths]
             else:
-                clothing_images = [Image.open(clothing_image_paths)]
+                clothing_images = [self._resize_image_if_needed(Image.open(clothing_image_paths))]
             
             print(f"🤖 Generating virtual try-on with Gemini...")
             print(f"Person image: {person_image.size}")
@@ -113,8 +124,14 @@ class GeminiService:
         """
         try:
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=styling_context
+                model="gemini-3-pro-preview",
+                contents=styling_context,
+                config=genai.types.GenerateContentConfig(
+                    thinking_config=genai.types.ThinkingConfig(
+                        include_thoughts=True,
+                        thinking_level="HIGH"
+                    )
+                )
             )
             
             raw_text = getattr(response, 'text', None)

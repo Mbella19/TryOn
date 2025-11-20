@@ -27,7 +27,7 @@ def create_app(config_name='development'):
     bcrypt.init_app(app)
     jwt = JWTManager(app)
     CORS(app, resources={
-        r"/api/*": {
+        r"/*": {
             "origins": app.config['CORS_ORIGINS'],
             "allow_headers": ["Content-Type", "Authorization"],
             "expose_headers": ["Content-Type", "Authorization"]
@@ -583,20 +583,14 @@ Ensure each outfit lists at least one item id.
                     )
                     
                     
-                    # Construct absolute paths
-                    if not os.path.isabs(base_photo.filepath):
-                        base_photo_rel = base_photo.filepath.replace('uploads/', '', 1) if base_photo.filepath.startswith('uploads/') else base_photo.filepath
-                        base_photo_path = os.path.join(app.config['UPLOAD_FOLDER'], base_photo_rel)
-                    else:
-                        base_photo_path = base_photo.filepath
+                    # Construct absolute paths using current UPLOAD_FOLDER configuration
+                    # This ignores potentially stale absolute paths in the database
+                    base_photo_path = os.path.join(app.config['UPLOAD_FOLDER'], 'photos', base_photo.filename)
                         
                     item_paths = []
                     for item in selected_items:
-                        if not os.path.isabs(item.filepath):
-                            item_rel = item.filepath.replace('uploads/', '', 1) if item.filepath.startswith('uploads/') else item.filepath
-                            item_paths.append(os.path.join(app.config['UPLOAD_FOLDER'], item_rel))
-                        else:
-                            item_paths.append(item.filepath)
+                        item_path = os.path.join(app.config['UPLOAD_FOLDER'], 'clothing', item.filename)
+                        item_paths.append(item_path)
                     
                     result_image = gemini_service.virtual_tryon(
                         base_photo_path,
