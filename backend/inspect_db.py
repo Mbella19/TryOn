@@ -22,6 +22,18 @@ try:
     users = cursor.fetchall()
     for user in users:
         print(user)
+
+    print("\n--- Photos ---")
+    cursor.execute("SELECT id, user_id, filename, filepath FROM photos;")
+    photos = cursor.fetchall()
+    for photo in photos:
+        print(photo)
+
+    print("\n--- Clothing Items ---")
+    cursor.execute("SELECT id, user_id, filename, filepath, category FROM clothing_items;")
+    items = cursor.fetchall()
+    for item in items:
+        print(item)
         
     conn.close()
 except Exception as e:

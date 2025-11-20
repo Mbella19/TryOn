@@ -1,15 +1,37 @@
 import os
 from datetime import timedelta
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Resolve important paths up front
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+# Always load the .env that sits next to this config, even when the app
+# is started from a different working directory (e.g., project root).
+load_dotenv(BASE_DIR / ".env")
+
+
+def _build_db_uri() -> str:
+    """Return a fully-qualified SQLite URI, normalizing relative paths."""
+    env_uri = os.getenv("DATABASE_URL")
+    default_path = BASE_DIR / "instance" / "tryon.db"
+
+    if env_uri and env_uri.startswith("sqlite:///"):
+        db_path = env_uri.replace("sqlite:///", "", 1)
+        db_path = Path(db_path)
+        if not db_path.is_absolute():
+            db_path = BASE_DIR / db_path
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:///{db_path}"
+
+    default_path.parent.mkdir(parents=True, exist_ok=True)
+    return f"sqlite:///{default_path}"
 
 class Config:
     """Base configuration"""
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-this')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'tryon.db')}")
+    SQLALCHEMY_DATABASE_URI = _build_db_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # JWT Configuration
@@ -45,4 +67,3 @@ config = {
     'production': ProductionConfig,
     'default': DevelopmentConfig
 }
-

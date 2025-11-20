@@ -75,7 +75,7 @@ function TryOnStudio() {
       </div>
 
       {/* Main Display Area */}
-      <div className="flex-[0.8] min-h-0 bg-white border-2 md:border-3 border-black shadow-neo p-0.5 md:p-1.5 mb-0.5 md:mb-1.5 relative overflow-hidden">
+      <div className="flex-[0.8] min-h-0 bg-white border-2 md:border-3 border-black shadow-neo p-0.5 md:p-1.5 mb-2 md:mb-4 relative overflow-hidden">
         {result ? (
           <img
             src={`/${result.result_filepath}`}
@@ -115,12 +115,12 @@ function TryOnStudio() {
       </div>
 
       {/* Controls */}
-      <div className="bg-white border-3 border-black p-2 shadow-neo shrink-0">
+      <div className="bg-white border-3 border-black p-[0.55rem] shadow-neo shrink-0">
         {/* Tabs */}
         <div className="flex border-b-3 border-black mb-1">
           <button
             onClick={() => setActiveTab('photos')}
-            className={`flex-1 font-mono font-bold text-sm py-2 ${activeTab === 'photos' ? 'bg-neo-accent' : 'hover:bg-gray-100'
+            className={`flex-1 font-mono font-bold text-[0.96rem] py-[0.55rem] ${activeTab === 'photos' ? 'bg-neo-accent' : 'hover:bg-gray-100'
               }`}
           >
             PHOTOS
@@ -128,7 +128,7 @@ function TryOnStudio() {
           <div className="w-0.5 bg-black"></div>
           <button
             onClick={() => setActiveTab('wardrobe')}
-            className={`flex-1 font-mono font-bold text-sm py-2 ${activeTab === 'wardrobe' ? 'bg-neo-secondary' : 'hover:bg-gray-100'
+            className={`flex-1 font-mono font-bold text-[0.96rem] py-[0.55rem] ${activeTab === 'wardrobe' ? 'bg-neo-secondary' : 'hover:bg-gray-100'
               }`}
           >
             WARDROBE
@@ -148,7 +148,7 @@ function TryOnStudio() {
                   key={item.id}
                   onClick={() => activeTab === 'photos' ? setSelectedPhoto(item) : setSelectedClothing(item)}
                   className={`
-                    inline-block w-12 h-12 md:w-20 md:h-20 border-2 border-black flex-shrink-0 transition-all
+                    inline-block w-[3.3rem] h-[3.3rem] md:w-[5.5rem] md:h-[5.5rem] border-2 border-black flex-shrink-0 transition-all
                     ${isSelected ? 'ring-2 md:ring-4 ring-black scale-95' : 'hover:scale-95'}
                   `}
                 >
@@ -174,7 +174,7 @@ function TryOnStudio() {
           disabled={generating || !selectedPhoto || !selectedClothing}
           fullWidth
           variant="primary"
-          className="mt-1 md:mt-2 py-2 md:py-3 text-xs md:text-sm"
+          className="mt-1 md:mt-2 py-[0.55rem] md:py-[0.825rem] text-[0.825rem] md:text-[0.96rem]"
         >
           {generating ? 'GENERATING...' : 'TRY ON NOW'}
         </NeoButton>

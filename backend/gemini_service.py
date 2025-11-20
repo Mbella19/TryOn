@@ -38,14 +38,13 @@ class GeminiService:
             Generated image as PIL Image object
         """
         try:
-            # Load and resize images
+            # Load images at full resolution
             person_image = Image.open(person_image_path)
-            person_image = self._resize_image_if_needed(person_image)
             
             if isinstance(clothing_image_paths, (list, tuple, set)):
-                clothing_images = [self._resize_image_if_needed(Image.open(path)) for path in clothing_image_paths]
+                clothing_images = [Image.open(path) for path in clothing_image_paths]
             else:
-                clothing_images = [self._resize_image_if_needed(Image.open(clothing_image_paths))]
+                clothing_images = [Image.open(clothing_image_paths)]
             
             print(f"🤖 Generating virtual try-on with Gemini...")
             print(f"Person image: {person_image.size}")
@@ -60,12 +59,14 @@ class GeminiService:
             contents.append(prompt)
             
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash-image",
+                model="gemini-3-pro-image-preview",
                 contents=contents,
                 config=genai.types.GenerateContentConfig(
-                    temperature=0.5,
+                    response_modalities=["IMAGE", "TEXT"],
+                    temperature=0.0,
                     image_config=genai.types.ImageConfig(
-                        aspect_ratio="9:16"
+                        aspect_ratio="9:16",
+                        image_size="4K"
                     )
                 )
             )
@@ -190,12 +191,14 @@ class GeminiService:
             print(f"🎨 Generating clothing image for: {description}")
             
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash-image",
+                model="gemini-3-pro-image-preview",
                 contents=prompt,
                 config=genai.types.GenerateContentConfig(
-                    temperature=0.5,
+                    response_modalities=["IMAGE", "TEXT"],
+                    temperature=0.0,
                     image_config=genai.types.ImageConfig(
-                        aspect_ratio="1:1"
+                        aspect_ratio="1:1",
+                        image_size="4K"
                     )
                 )
             )
@@ -238,10 +241,14 @@ class GeminiService:
             contents = [prompt, previous_image]
             
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash-image",
+                model="gemini-3-pro-image-preview",
                 contents=contents,
                 config=genai.types.GenerateContentConfig(
-                    temperature=0.5
+                    response_modalities=["IMAGE", "TEXT"],
+                    temperature=0.0,
+                    image_config=genai.types.ImageConfig(
+                        image_size="4K"
+                    )
                 )
             )
             

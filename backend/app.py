@@ -73,6 +73,43 @@ def create_app(config_name='development'):
             return filename, filepath
         return None, None
     
+    def resolve_media_path(record, subfolder):
+        """
+        Resolve a media file path, handling legacy absolute paths and relative paths.
+        Returns an existing absolute path or None if not found.
+        """
+        stored_path = getattr(record, 'filepath', None)
+        filename = getattr(record, 'filename', None) or (os.path.basename(stored_path) if stored_path else None)
+        
+        candidates = []
+        
+        if stored_path:
+            if os.path.isabs(stored_path):
+                candidates.append(stored_path)
+            else:
+                normalized = stored_path.lstrip("./")
+                if normalized.startswith('uploads/'):
+                    normalized = normalized.split('/', 1)[1]
+                candidates.append(os.path.join(app.config['UPLOAD_FOLDER'], normalized))
+        
+        if filename:
+            candidates.append(os.path.join(app.config['UPLOAD_FOLDER'], subfolder, filename))
+            legacy_uploads = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'uploads', filename)
+            candidates.append(legacy_uploads)
+        
+        seen = set()
+        for candidate in candidates:
+            if not candidate or candidate in seen:
+                continue
+            seen.add(candidate)
+            if os.path.exists(candidate):
+                if stored_path != candidate:
+                    record.filepath = candidate
+                    print(f"🔄 Resolved {subfolder} path from '{stored_path}' to '{candidate}'")
+                return candidate
+        
+        return None
+    
     # Routes
     @app.route('/api/health', methods=['GET'])
     def health_check():
@@ -221,11 +258,11 @@ def create_app(config_name='development'):
                 return jsonify({'error': 'Photo not found'}), 404
             
             # Delete file
-            if not os.path.isabs(photo.filepath):
-                photo_rel = photo.filepath.replace('uploads/', '', 1) if photo.filepath.startswith('uploads/') else photo.filepath
-                photo_path = os.path.join(app.config['UPLOAD_FOLDER'], photo_rel)
-            else:
+            if os.path.isabs(photo.filepath):
                 photo_path = photo.filepath
+            else:
+                photo_filename = os.path.basename(photo.filepath)
+                photo_path = os.path.join(app.config['UPLOAD_FOLDER'], 'photos', photo_filename)
             if os.path.exists(photo_path):
                 os.remove(photo_path)
             
@@ -360,11 +397,11 @@ def create_app(config_name='development'):
                 return jsonify({'error': 'Clothing item not found'}), 404
             
             # Delete file
-            if not os.path.isabs(item.filepath):
-                item_rel = item.filepath.replace('uploads/', '', 1) if item.filepath.startswith('uploads/') else item.filepath
-                item_path = os.path.join(app.config['UPLOAD_FOLDER'], item_rel)
-            else:
+            if os.path.isabs(item.filepath):
                 item_path = item.filepath
+            else:
+                item_filename = os.path.basename(item.filepath)
+                item_path = os.path.join(app.config['UPLOAD_FOLDER'], 'clothing', item_filename)
             if os.path.exists(item_path):
                 os.remove(item_path)
             
@@ -403,30 +440,38 @@ def create_app(config_name='development'):
             if not photo or not clothing:
                 return jsonify({'error': 'Photo or clothing not found'}), 404
             
-            # Construct absolute paths (handle both relative and absolute paths in DB)
-            # If relative path starts with 'uploads/', strip it since UPLOAD_FOLDER already points to uploads dir
-            if not os.path.isabs(photo.filepath):
-                photo_rel = photo.filepath.replace('uploads/', '', 1) if photo.filepath.startswith('uploads/') else photo.filepath
-                photo_path = os.path.join(app.config['UPLOAD_FOLDER'], photo_rel)
-            else:
-                photo_path = photo.filepath
-                
-            if not os.path.isabs(clothing.filepath):
-                clothing_rel = clothing.filepath.replace('uploads/', '', 1) if clothing.filepath.startswith('uploads/') else clothing.filepath
-                clothing_path = os.path.join(app.config['UPLOAD_FOLDER'], clothing_rel)
-            else:
-                clothing_path = clothing.filepath
+            # Resolve absolute paths, tolerating legacy locations
+            photo_path = resolve_media_path(photo, 'photos')
+            clothing_path = resolve_media_path(clothing, 'clothing')
+            
+            if not photo_path or not clothing_path:
+                return jsonify({'error': 'Photo or clothing image not found on server. Please re-upload and try again.'}), 404
+            
+            # Debug logging
+            print(f"🔍 UPLOAD_FOLDER: {app.config['UPLOAD_FOLDER']}")
+            print(f"🔍 photo.filepath from DB: {photo.filepath}")
+            print(f"🔍 clothing.filepath from DB: {clothing.filepath}")
+            print(f"🔍 photo_path resolved: {photo_path}")
+            print(f"🔍 clothing_path resolved: {clothing_path}")
+            print(f"🔍 photo exists? {os.path.exists(photo_path)} | clothing exists? {os.path.exists(clothing_path)}")
+            
+            if not os.path.exists(photo_path) or not os.path.exists(clothing_path):
+                return jsonify({'error': 'Source image missing on disk. Please re-upload and try again.'}), 404
             
             # Generate try-on using Gemini
             clothing_desc = f"{clothing.category} ({os.path.splitext(clothing.filename)[0].replace('_', ' ')})"
             prompt = (
                 f"Take the {clothing_desc} from the first image "
                 "and let the person from the second image wear it. "
-                "Generate a realistic, full-body shot of the person wearing the clothes, "
-                "preserving their identity and facial features exactly."
+
             )
             
-            result_image = gemini_service.virtual_tryon(photo_path, clothing_path, prompt=prompt)
+            try:
+                result_image = gemini_service.virtual_tryon(photo_path, clothing_path, prompt=prompt)
+            except Exception as gen_error:
+                import traceback
+                traceback.print_exc()
+                return jsonify({'error': f"Virtual try-on failed: {gen_error}"}), 500
             
             # Save result
             result_filename = f"{uuid.uuid4()}.png"
@@ -578,8 +623,7 @@ Ensure each outfit lists at least one item id.
                     image_prompt = (
                         f"Take the {prompt_items} from the clothing images "
                         "and let the person from the final image wear them. "
-                        "Generate a realistic, full-body shot of the person wearing the clothes, "
-                        "preserving their identity and facial features exactly."
+
                     )
                     
                     
@@ -664,11 +708,11 @@ Ensure each outfit lists at least one item id.
                 return jsonify({'error': 'Saved look not found'}), 404
             
             # Delete file
-            if not os.path.isabs(look.result_filepath):
-                result_rel = look.result_filepath.replace('uploads/', '', 1) if look.result_filepath.startswith('uploads/') else look.result_filepath
-                result_path = os.path.join(app.config['UPLOAD_FOLDER'], result_rel)
-            else:
+            if os.path.isabs(look.result_filepath):
                 result_path = look.result_filepath
+            else:
+                result_filename = os.path.basename(look.result_filepath)
+                result_path = os.path.join(app.config['UPLOAD_FOLDER'], 'results', result_filename)
             if os.path.exists(result_path):
                 os.remove(result_path)
             
@@ -925,6 +969,7 @@ Ensure each outfit lists at least one item id.
             return jsonify({'message': 'Item added to wardrobe', 'item': item.to_dict()}), 201
             
         except Exception as e:
+            db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/clothing/import', methods=['POST'])

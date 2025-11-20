@@ -8,9 +8,10 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null
 # Start Backend
 echo "Starting Backend..."
 cd backend
-source venv/bin/activate
-python app.py &
+python3.11 app.py 2>&1 &
 BACKEND_PID=$!
+echo "Waiting for backend to start..."
+sleep 3
 cd ..
 
 # Start Frontend

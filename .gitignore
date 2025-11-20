@@ -90,13 +90,7 @@ logs/
 
 # Gemini/Antigravity
 .gemini/
-.env.local
 
-# Logs
-*.log
-logs/
-
-# Gemini/Antigravity
-.gemini/
-=======
->>>>>>> 147aeb689204f9a01df5b3f06ba46cc2fb46d05b
+# Debug output
+debug_output.png
+test_generated_clothing.png

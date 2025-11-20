@@ -1,7 +1,7 @@
 import axios from 'axios'
 
-// Direct connection to backend (hardcoded for preview compatibility)
-const API_BASE_URL = 'http://localhost:5001/api'
+// Direct connection to backend (override with VITE_API_URL if needed)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -45,7 +45,11 @@ export const clothingAPI = {
   upload: (formData) => api.post('/clothing', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  delete: (id) => api.delete(`/clothing/${id}`)
+  delete: (id) => api.delete(`/clothing/${id}`),
+  generateFromText: (data) => api.post('/clothing/generate', data),
+  refineGenerated: (data) => api.post('/clothing/refine', data),
+  saveGenerated: (data) => api.post('/clothing/save-generated', data),
+  importFromUrl: (data) => api.post('/clothing/import', data)
 }
 
 // Try-On APIs
@@ -56,4 +60,3 @@ export const tryonAPI = {
 }
 
 export default api
-
