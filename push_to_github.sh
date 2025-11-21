@@ -12,11 +12,11 @@ if [ ! -d "$ALT_GIT_DIR" ] && [ -d "$TMP_GIT" ]; then
   cp -R "$TMP_GIT" "$ALT_GIT_DIR"
 fi
 
-if [ -d "$ALT_GIT_DIR" ]; then
-  export GIT_DIR="$ALT_GIT_DIR"
-  export GIT_WORK_TREE="$ROOT_DIR"
-elif [ -d "$PRIMARY_GIT_DIR" ]; then
+if [ -d "$PRIMARY_GIT_DIR" ]; then
   export GIT_DIR="$PRIMARY_GIT_DIR"
+  export GIT_WORK_TREE="$ROOT_DIR"
+elif [ -d "$ALT_GIT_DIR" ]; then
+  export GIT_DIR="$ALT_GIT_DIR"
   export GIT_WORK_TREE="$ROOT_DIR"
 else
   echo "Error: no git metadata found in .git or .git-data." >&2
