@@ -1,30 +1,19 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
 import NeoCard from '../components/ui/NeoCard'
 import NeoButton from '../components/ui/NeoButton'
-import { useAuthStore } from '../store/authStore'
+import { challengeAPI, tryonAPI } from '../services/api'
 import { Flame } from 'lucide-react'
 
 function StyleDuels() {
-    const navigate = useNavigate()
-    const { token } = useAuthStore()
     const [challenge, setChallenge] = useState(null)
     const [entries, setEntries] = useState([])
-    const [myEntry, setMyEntry] = useState(null)
     const [loading, setLoading] = useState(true)
     const [savedLooks, setSavedLooks] = useState([])
     const [showEntryModal, setShowEntryModal] = useState(false)
 
-    useEffect(() => {
-        fetchChallenge()
-    }, [])
-
-    const fetchChallenge = async () => {
+    const fetchChallenge = useCallback(async () => {
         try {
-            const res = await fetch('http://localhost:5001/api/challenges', {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-            const data = await res.json()
+            const { data } = await challengeAPI.getCurrent()
             setChallenge(data.challenge)
             if (data.challenge) {
                 fetchEntries(data.challenge.id)
@@ -35,15 +24,12 @@ function StyleDuels() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [])
 
     const fetchEntries = async (challengeId) => {
         try {
-            const res = await fetch(`http://localhost:5001/api/challenges/${challengeId}/entries`, {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-            const data = await res.json()
-            setEntries(data.entries)
+            const { data } = await challengeAPI.getEntries(challengeId)
+            setEntries(data.entries || [])
         } catch (error) {
             console.error('Error fetching entries:', error)
         }
@@ -51,11 +37,8 @@ function StyleDuels() {
 
     const fetchSavedLooks = async () => {
         try {
-            const res = await fetch('http://localhost:5001/api/saved-looks', {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-            const data = await res.json()
-            setSavedLooks(data.looks)
+            const { data } = await tryonAPI.getSaved()
+            setSavedLooks(data.looks || [])
         } catch (error) {
             console.error('Error fetching saved looks:', error)
         }
@@ -65,48 +48,30 @@ function StyleDuels() {
         if (!challenge) return
 
         try {
-            const res = await fetch(`http://localhost:5001/api/challenges/${challenge.id}/enter`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({ saved_look_id: lookId })
-            })
-
-            if (res.ok) {
-                alert('Entered challenge successfully!')
-                setShowEntryModal(false)
-                // Refresh entries
-                fetchEntries(challenge.id)
-            } else {
-                const data = await res.json()
-                alert(data.error)
-            }
+            await challengeAPI.enter(challenge.id, { saved_look_id: lookId })
+            alert('Entered challenge successfully!')
+            setShowEntryModal(false)
+            // Refresh entries
+            fetchEntries(challenge.id)
         } catch (error) {
             console.error('Error entering challenge:', error)
+            alert(error?.response?.data?.error || 'Failed to enter challenge')
         }
     }
 
     const handleVote = async (entryId) => {
         try {
-            const res = await fetch('http://localhost:5001/api/challenges/vote', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({ entry_id: entryId })
-            })
-
-            if (res.ok) {
-                // Remove voted entry from list to show next one
-                setEntries(entries.filter(e => e.id !== entryId))
-            }
+            await challengeAPI.vote(entryId)
+            // Remove voted entry from list to show next one
+            setEntries((prev) => prev.filter((e) => e.id !== entryId))
         } catch (error) {
             console.error('Error voting:', error)
         }
     }
+
+    useEffect(() => {
+        fetchChallenge()
+    }, [fetchChallenge])
 
     if (loading) return <div>Loading...</div>
 
@@ -125,7 +90,7 @@ function StyleDuels() {
                         <span className="font-bold text-[10px] md:text-xs bg-black text-white px-2 py-1">
                             ENDS: {new Date(challenge.end_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
-                        <NeoButton onClick={() => setShowEntryModal(true)} size="sm" className="text-xs md:text-sm">
+                        <NeoButton onClick={() => setShowEntryModal(true)} className="text-xs md:text-sm">
                             ENTER CHALLENGE
                         </NeoButton>
                     </div>
@@ -153,7 +118,7 @@ function StyleDuels() {
                                 <NeoButton
                                     fullWidth
                                     variant="secondary"
-                                    onClick={() => setEntries(entries.slice(1))} // Skip
+                                    onClick={() => setEntries((prev) => prev.slice(1))} // Skip
                                     className="py-2 text-xs md:text-sm"
                                 >
                                     SKIP

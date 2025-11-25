@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import axios from 'axios'
 import NeoButton from '../components/ui/NeoButton'
@@ -10,7 +9,6 @@ import NeoSelect from '../components/ui/NeoSelect'
 import { MapPin } from 'lucide-react'
 
 function StyleMyLook() {
-  const navigate = useNavigate()
   const [occasion, setOccasion] = useState('')
   const [location, setLocation] = useState('')
   const [hour, setHour] = useState('09')

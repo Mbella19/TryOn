@@ -2,7 +2,6 @@ import os
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from werkzeug.utils import secure_filename
 from datetime import datetime
 import uuid
 
@@ -13,7 +12,6 @@ from weather_service import WeatherService
 import requests
 from bs4 import BeautifulSoup
 from sqlalchemy.sql.expression import func
-from rembg import remove
 from PIL import Image
 from io import BytesIO
 
@@ -351,14 +349,14 @@ def create_app(config_name='development'):
                 filename = f"{uuid.uuid4()}.{ext}"
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'clothing', filename)
                 
-                # Process with rembg
+                # Process with Gemini background removal
                 try:
                     input_image = Image.open(file.stream)
-                    output_image = remove(input_image)
+                    output_image = gemini_service.remove_background(input_image)
                     output_image.save(filepath)
                 except Exception as e:
                     print(f"⚠️ Background removal failed for {file.filename}: {e}")
-                    # Fallback to original
+                    # Fallback to original (or rembg if gemini_service failed internally)
                     file.seek(0)
                     file.save(filepath)
                 
@@ -524,12 +522,25 @@ def create_app(config_name='development'):
             if not occasion or not location:
                 return jsonify({'error': 'Occasion and location required'}), 400
             
-            # Get user's wardrobe
+            # Get user's wardrobe and resolve available file paths
             clothing_items = ClothingItem.query.filter_by(user_id=user_id).all()
             if len(clothing_items) == 0:
                 return jsonify({'error': 'No clothing items in wardrobe'}), 400
             
-            clothing_lookup = {item.id: item for item in clothing_items}
+            clothing_paths = {}
+            available_items = []
+            for item in clothing_items:
+                resolved_path = resolve_media_path(item, 'clothing')
+                if resolved_path and os.path.exists(resolved_path):
+                    clothing_paths[item.id] = resolved_path
+                    available_items.append(item)
+                else:
+                    print(f"⚠️ Missing clothing image on disk for item {item.id} ({item.filename})")
+            
+            if len(available_items) == 0:
+                return jsonify({'error': 'No clothing images found on server. Please re-upload your wardrobe items.'}), 404
+            
+            clothing_lookup = {item.id: item for item in available_items}
             
             # Ensure a base photo is selected for visualization output
             base_photo = Photo.query.filter_by(user_id=user_id, is_selected=True).first()
@@ -537,6 +548,10 @@ def create_app(config_name='development'):
                 base_photo = Photo.query.filter_by(user_id=user_id).order_by(Photo.uploaded_at.desc()).first()
             if not base_photo:
                 return jsonify({'error': 'Please upload and select a photo before generating a style.'}), 400
+            
+            base_photo_path = resolve_media_path(base_photo, 'photos')
+            if not base_photo_path or not os.path.exists(base_photo_path):
+                return jsonify({'error': 'Base photo not found on server. Please re-upload and try again.'}), 404
             
             # Get weather if requested
             weather_info = None
@@ -549,7 +564,7 @@ def create_app(config_name='development'):
                 weather_context = f"Temperature: {weather_info['temperature']}°{weather_info['temperature_unit']}, Conditions: {weather_info['conditions']}"
             
             wardrobe_lines = []
-            for item in clothing_items:
+            for item in available_items:
                 display_name = os.path.splitext(item.filename)[0].replace('_', ' ')
                 wardrobe_lines.append(f"{item.id}: Category={item.category}, Name={display_name}")
             wardrobe_text = "\n".join(wardrobe_lines)
@@ -605,14 +620,19 @@ Ensure each outfit lists at least one item id.
                     continue
                 
                 selected_items = []
+                item_paths = []
                 for item_id in item_ids:
                     item = clothing_lookup.get(item_id)
-                    if item:
+                    path = clothing_paths.get(item_id)
+                    if item and path:
                         selected_items.append(item)
+                        item_paths.append(path)
+                    elif item:
+                        print(f"⚠️  Item id {item_id} found but file missing; skipping this item.")
                     else:
                         print(f"⚠️  Item id {item_id} not found in wardrobe; skipping outfit segment.")
                 
-                if len(selected_items) == 0:
+                if len(selected_items) == 0 or len(item_paths) == 0:
                     continue
                 
                 try:
@@ -625,16 +645,6 @@ Ensure each outfit lists at least one item id.
                         "and let the person from the final image wear them. "
 
                     )
-                    
-                    
-                    # Construct absolute paths using current UPLOAD_FOLDER configuration
-                    # This ignores potentially stale absolute paths in the database
-                    base_photo_path = os.path.join(app.config['UPLOAD_FOLDER'], 'photos', base_photo.filename)
-                        
-                    item_paths = []
-                    for item in selected_items:
-                        item_path = os.path.join(app.config['UPLOAD_FOLDER'], 'clothing', item.filename)
-                        item_paths.append(item_path)
                     
                     result_image = gemini_service.virtual_tryon(
                         base_photo_path,
@@ -673,7 +683,7 @@ Ensure each outfit lists at least one item id.
                 'message': 'Outfit recommendations generated',
                 'outfits': generated_outfits,
                 'weather': weather_info,
-                'wardrobe_items': len(clothing_items)
+                'wardrobe_items': len(available_items)
             }), 200
             
         except Exception as e:
@@ -1043,17 +1053,13 @@ Ensure each outfit lists at least one item id.
                 image = image.convert('RGB')
             
             # Apply background removal
-            img_byte_arr = BytesIO()
-            image.save(img_byte_arr, format='PNG')
-            img_byte_arr = img_byte_arr.getvalue()
-            output = remove(img_byte_arr)
+            output_image = gemini_service.remove_background(image)
             
             # Save processed image
             filename = f"{uuid.uuid4()}.png"
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'clothing', filename)
             
-            with open(filepath, 'wb') as f:
-                f.write(output)
+            output_image.save(filepath)
             
             item = ClothingItem(
                 user_id=user_id,

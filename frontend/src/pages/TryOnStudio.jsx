@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { photosAPI, clothingAPI, tryonAPI } from '../services/api'
 import NeoButton from '../components/ui/NeoButton'
-import NeoCard from '../components/ui/NeoCard'
 import { MousePointerClick, Sparkles } from 'lucide-react'
 
 function TryOnStudio() {

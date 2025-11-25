@@ -65,8 +65,8 @@ class GeminiService:
                     response_modalities=["IMAGE", "TEXT"],
                     temperature=0.0,
                     image_config=genai.types.ImageConfig(
-                        aspect_ratio="9:16",
-                        image_size="4K"
+                        aspect_ratio="4:5",
+                        image_size="2048"
                     )
                 )
             )
@@ -130,7 +130,7 @@ class GeminiService:
                 config=genai.types.GenerateContentConfig(
                     thinking_config=genai.types.ThinkingConfig(
                         include_thoughts=True,
-                        thinking_level="HIGH"
+                        thinking_level="LOW"
                     )
                 )
             )
@@ -197,8 +197,8 @@ class GeminiService:
                     response_modalities=["IMAGE", "TEXT"],
                     temperature=0.0,
                     image_config=genai.types.ImageConfig(
-                        aspect_ratio="1:1",
-                        image_size="4K"
+                        aspect_ratio="4:5",
+                        image_size="1024"
                     )
                 )
             )
@@ -208,9 +208,9 @@ class GeminiService:
                     print("✓ Clothing image generated successfully!")
                     img = Image.open(BytesIO(part.inline_data.data))
                     
-                    # Remove background to ensure transparency
-                    print("✨ Removing background from generated image...")
-                    return remove(img)
+                    # Remove background using Gemini
+                    print("✨ Removing background using Gemini...")
+                    return self.remove_background(img)
             
             raise Exception("No image generated")
             
@@ -257,16 +257,58 @@ class GeminiService:
                     print("✓ Refined image generated successfully!")
                     img = Image.open(BytesIO(part.inline_data.data))
                     
-                    # Remove background
-                    print("✨ Removing background from refined image...")
-                    return remove(img)
+                    # Remove background using Gemini
+                    print("✨ Removing background using Gemini...")
+                    return self.remove_background(img)
             
             raise Exception("No image generated during refinement")
             
         except Exception as e:
             print(f"❌ Error refining clothing image: {str(e)}")
-            raise Exception("No image generated")
+            raise Exception("No image generated") from e
+
+    def remove_background(self, image):
+        """
+        Remove background from an image using Gemini 3.0.
+        We use Gemini to remove human parts and the original background,
+        placing the item on a clean background. Then we use rembg for transparency.
+        """
+        try:
+            # Convert to RGB if needed
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+                
+            prompt = "remove background and any human part and put it on a white transparent background"
+            
+            print("🤖 Requesting background removal via Gemini...")
+            
+            response = self.client.models.generate_content(
+                model="gemini-3-pro-image-preview",
+                contents=[prompt, image],
+                config=genai.types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    temperature=0.0,
+                    image_config=genai.types.ImageConfig(
+                        aspect_ratio="4:5",
+                        image_size="1024"
+                    )
+                )
+            )
+            
+            for part in response.candidates[0].content.parts:
+                if part.inline_data is not None:
+                    img_result = Image.open(BytesIO(part.inline_data.data))
+                    
+                    # Since Gemini generates a rectangular image (likely with white background based on prompt),
+                    # we use rembg to ensure it's actually transparent.
+                    print("✨ Applying final transparency with rembg...")
+                    return remove(img_result)
+            
+            # Fallback if Gemini fails
+            print("⚠️ Gemini background removal failed, falling back to rembg")
+            return remove(image)
             
         except Exception as e:
-            print(f"❌ Error generating clothing image: {str(e)}")
-            raise
+            print(f"❌ Error in Gemini background removal: {e}")
+            # Fallback
+            return remove(image)

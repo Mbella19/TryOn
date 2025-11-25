@@ -59,4 +59,17 @@ export const tryonAPI = {
   deleteSaved: (id) => api.delete(`/saved-looks/${id}`)
 }
 
+// Daily briefing / utility
+export const utilityAPI = {
+  getDailyBriefing: (location) => api.get('/daily-briefing', { params: { location } })
+}
+
+// Challenge APIs
+export const challengeAPI = {
+  getCurrent: () => api.get('/challenges'),
+  getEntries: (challengeId) => api.get(`/challenges/${challengeId}/entries`),
+  enter: (challengeId, payload) => api.post(`/challenges/${challengeId}/enter`, payload),
+  vote: (entryId) => api.post('/challenges/vote', { entry_id: entryId })
+}
+
 export default api

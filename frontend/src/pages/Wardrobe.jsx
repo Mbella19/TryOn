@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { clothingAPI } from '../services/api'
 import NeoButton from '../components/ui/NeoButton'
@@ -24,11 +24,7 @@ function Wardrobe() {
   const [isRefining, setIsRefining] = useState(false)
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
 
-  useEffect(() => {
-    fetchItems()
-  }, [activeCategory])
-
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     try {
       const response = await clothingAPI.getAll(activeCategory)
       setItems(response.data.items)
@@ -37,7 +33,11 @@ function Wardrobe() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [activeCategory])
+
+  useEffect(() => {
+    fetchItems()
+  }, [fetchItems])
 
   const getErrorMessage = (error, fallback) => {
     return error?.response?.data?.error || error?.message || fallback

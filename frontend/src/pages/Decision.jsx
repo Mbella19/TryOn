@@ -2,21 +2,17 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import NeoCard from '../components/ui/NeoCard'
 import NeoButton from '../components/ui/NeoButton'
-import { useAuthStore } from '../store/authStore'
+import { utilityAPI } from '../services/api'
 import { CloudSun, Shirt, Sparkles } from 'lucide-react'
 
 function Decision() {
   const navigate = useNavigate()
-  const { token } = useAuthStore()
   const [briefing, setBriefing] = useState(null)
 
   useEffect(() => {
     const fetchBriefing = async () => {
       try {
-        const res = await fetch('http://localhost:5001/api/daily-briefing?location=London', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        const data = await res.json()
+        const { data } = await utilityAPI.getDailyBriefing('London')
         setBriefing(data)
       } catch (error) {
         console.error('Error fetching briefing:', error)
@@ -28,7 +24,7 @@ function Decision() {
   return (
     <div className="h-full flex flex-col p-2 md:p-4 gap-2 md:gap-4">
       <div className="text-center shrink-0">
-        <h2 className="font-display font-black text-2xl md:text-4xl lg:text-5xl italic tracking-tighter">WHAT'S NEXT?</h2>
+        <h2 className="font-display font-black text-2xl md:text-4xl lg:text-5xl italic tracking-tighter">WHAT&#39;S NEXT?</h2>
         <p className="font-mono text-xs md:text-sm lg:text-base font-bold">CHOOSE YOUR PATH</p>
       </div>
 
