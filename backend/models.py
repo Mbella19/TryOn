@@ -1,9 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 
 db = SQLAlchemy()
 bcrypt = Bcrypt()
+
+
+def utcnow():
+    """Return current UTC time (timezone-aware)"""
+    return datetime.now(timezone.utc)
 
 class User(db.Model):
     """User model for authentication and profile management"""
@@ -13,11 +18,11 @@ class User(db.Model):
     full_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+    created_at = db.Column(db.DateTime, default=utcnow)
+
     # New fields for Monetization & Retention
     credits = db.Column(db.Integer, default=5)
-    last_daily_login = db.Column(db.DateTime, default=datetime.utcnow)
+    last_daily_login = db.Column(db.DateTime, default=utcnow)
     
     # Relationships
     photos = db.relationship('Photo', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -46,13 +51,13 @@ class User(db.Model):
 class Photo(db.Model):
     """User photos for virtual try-on"""
     __tablename__ = 'photos'
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     filename = db.Column(db.String(255), nullable=False)
     filepath = db.Column(db.String(500), nullable=False)
-    is_selected = db.Column(db.Boolean, default=False)
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_selected = db.Column(db.Boolean, default=False, index=True)
+    uploaded_at = db.Column(db.DateTime, default=utcnow)
     
     def to_dict(self):
         """Convert photo to dictionary"""
@@ -67,19 +72,19 @@ class Photo(db.Model):
 class ClothingItem(db.Model):
     """Clothing items in user's wardrobe"""
     __tablename__ = 'clothing_items'
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     filename = db.Column(db.String(255), nullable=False)
     filepath = db.Column(db.String(500), nullable=False)
-    category = db.Column(db.String(50), nullable=False)  # tops, bottoms, dresses, outerwear, accessories
-    
+    category = db.Column(db.String(50), nullable=False, index=True)  # tops, bottoms, dresses, outerwear, accessories
+
     # New fields for Utility
     price = db.Column(db.Float, default=0.0)
     wear_count = db.Column(db.Integer, default=0)
     is_generated = db.Column(db.Boolean, default=False)
-    
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    uploaded_at = db.Column(db.DateTime, default=utcnow)
     
     def to_dict(self):
         """Convert clothing item to dictionary"""
@@ -103,15 +108,15 @@ class ClothingItem(db.Model):
 class SavedLook(db.Model):
     """Saved virtual try-on results"""
     __tablename__ = 'saved_looks'
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     photo_id = db.Column(db.Integer, db.ForeignKey('photos.id'), nullable=True)
     clothing_id = db.Column(db.Integer, db.ForeignKey('clothing_items.id'), nullable=True)
     result_filename = db.Column(db.String(255), nullable=False)
     result_filepath = db.Column(db.String(500), nullable=False)
     ai_analysis = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
     
     def to_dict(self):
         """Convert saved look to dictionary"""
@@ -132,8 +137,8 @@ class Challenge(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     theme = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    start_date = db.Column(db.DateTime, default=datetime.utcnow)
-    end_date = db.Column(db.DateTime, nullable=False)
+    start_date = db.Column(db.DateTime, default=utcnow)
+    end_date = db.Column(db.DateTime, nullable=False, index=True)
     
     entries = db.relationship('ChallengeEntry', backref='challenge', lazy=True, cascade='all, delete-orphan')
 
@@ -152,11 +157,11 @@ class ChallengeEntry(db.Model):
     __tablename__ = 'challenge_entries'
 
     id = db.Column(db.Integer, primary_key=True)
-    challenge_id = db.Column(db.Integer, db.ForeignKey('challenges.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey('challenges.id'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     saved_look_id = db.Column(db.Integer, db.ForeignKey('saved_looks.id'), nullable=False)
     votes = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     # Relationships
     saved_look = db.relationship('SavedLook')

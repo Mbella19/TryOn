@@ -72,6 +72,10 @@ class GeminiService:
             )
             
             # Extract generated image from response
+            if not response.candidates or not response.candidates[0].content.parts:
+                print("⚠️ Empty response from Gemini, creating preview...")
+                return self._create_preview_image(person_image, clothing_images[0])
+
             for part in response.candidates[0].content.parts:
                 if part.text is not None:
                     print(f"✓ Gemini response: {part.text[:100]}...")
@@ -203,15 +207,18 @@ class GeminiService:
                 )
             )
             
+            if not response.candidates or not response.candidates[0].content.parts:
+                raise Exception("Empty response from Gemini")
+
             for part in response.candidates[0].content.parts:
                 if part.inline_data is not None:
                     print("✓ Clothing image generated successfully!")
                     img = Image.open(BytesIO(part.inline_data.data))
-                    
+
                     # Remove background using Gemini
                     print("✨ Removing background using Gemini...")
                     return self.remove_background(img)
-            
+
             raise Exception("No image generated")
             
         except Exception as e:
@@ -252,15 +259,18 @@ class GeminiService:
                 )
             )
             
+            if not response.candidates or not response.candidates[0].content.parts:
+                raise Exception("Empty response from Gemini during refinement")
+
             for part in response.candidates[0].content.parts:
                 if part.inline_data is not None:
                     print("✓ Refined image generated successfully!")
                     img = Image.open(BytesIO(part.inline_data.data))
-                    
+
                     # Remove background using Gemini
                     print("✨ Removing background using Gemini...")
                     return self.remove_background(img)
-            
+
             raise Exception("No image generated during refinement")
             
         except Exception as e:
@@ -295,10 +305,14 @@ class GeminiService:
                 )
             )
             
+            if not response.candidates or not response.candidates[0].content.parts:
+                print("⚠️ Empty response from Gemini background removal, falling back to rembg")
+                return remove(image)
+
             for part in response.candidates[0].content.parts:
                 if part.inline_data is not None:
                     img_result = Image.open(BytesIO(part.inline_data.data))
-                    
+
                     # Since Gemini generates a rectangular image (likely with white background based on prompt),
                     # we use rembg to ensure it's actually transparent.
                     print("✨ Applying final transparency with rembg...")

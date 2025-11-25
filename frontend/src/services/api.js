@@ -10,14 +10,30 @@ const api = axios.create({
   }
 })
 
+// Cache token in memory to avoid parsing localStorage on every request
+let cachedToken = null
+
+// Function to update cached token (call this on login/logout)
+export const updateCachedToken = (token) => {
+  cachedToken = token
+}
+
 // Add auth token to requests
 api.interceptors.request.use((config) => {
-  const authStorage = localStorage.getItem('auth-storage')
-  if (authStorage) {
-    const { state } = JSON.parse(authStorage)
-    if (state.token) {
-      config.headers.Authorization = `Bearer ${state.token}`
+  // Try cached token first
+  if (!cachedToken) {
+    const authStorage = localStorage.getItem('auth-storage')
+    if (authStorage) {
+      try {
+        const { state } = JSON.parse(authStorage)
+        cachedToken = state?.token || null
+      } catch {
+        cachedToken = null
+      }
     }
+  }
+  if (cachedToken) {
+    config.headers.Authorization = `Bearer ${cachedToken}`
   }
   return config
 })

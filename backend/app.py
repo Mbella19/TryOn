@@ -335,7 +335,10 @@ def create_app(config_name='development'):
             category = request.form.get('category', 'tops')
             try:
                 price = float(request.form.get('price', 0.0))
-            except ValueError:
+                # Validate price range
+                if price < 0 or price > 999999:
+                    return jsonify({'error': 'Invalid price: must be between 0 and 999999'}), 400
+            except (ValueError, TypeError):
                 price = 0.0
             
             uploaded_items = []
@@ -445,13 +448,14 @@ def create_app(config_name='development'):
             if not photo_path or not clothing_path:
                 return jsonify({'error': 'Photo or clothing image not found on server. Please re-upload and try again.'}), 404
             
-            # Debug logging
-            print(f"🔍 UPLOAD_FOLDER: {app.config['UPLOAD_FOLDER']}")
-            print(f"🔍 photo.filepath from DB: {photo.filepath}")
-            print(f"🔍 clothing.filepath from DB: {clothing.filepath}")
-            print(f"🔍 photo_path resolved: {photo_path}")
-            print(f"🔍 clothing_path resolved: {clothing_path}")
-            print(f"🔍 photo exists? {os.path.exists(photo_path)} | clothing exists? {os.path.exists(clothing_path)}")
+            # Debug logging (only in development)
+            if app.debug:
+                print(f"🔍 UPLOAD_FOLDER: {app.config['UPLOAD_FOLDER']}")
+                print(f"🔍 photo.filepath from DB: {photo.filepath}")
+                print(f"🔍 clothing.filepath from DB: {clothing.filepath}")
+                print(f"🔍 photo_path resolved: {photo_path}")
+                print(f"🔍 clothing_path resolved: {clothing_path}")
+                print(f"🔍 photo exists? {os.path.exists(photo_path)} | clothing exists? {os.path.exists(clothing_path)}")
             
             if not os.path.exists(photo_path) or not os.path.exists(clothing_path):
                 return jsonify({'error': 'Source image missing on disk. Please re-upload and try again.'}), 404
@@ -471,10 +475,15 @@ def create_app(config_name='development'):
                 traceback.print_exc()
                 return jsonify({'error': f"Virtual try-on failed: {gen_error}"}), 500
             
-            # Save result
+            # Save result with optimization
             result_filename = f"{uuid.uuid4()}.png"
             result_filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'results', result_filename)
-            result_image.save(result_filepath)
+            # Optimize image size if too large
+            if max(result_image.size) > 2048:
+                ratio = 2048 / max(result_image.size)
+                new_size = (int(result_image.width * ratio), int(result_image.height * ratio))
+                result_image = result_image.resize(new_size, Image.Resampling.LANCZOS)
+            result_image.save(result_filepath, optimize=True)
             
             # Get AI analysis from Gemini service
             ai_analysis = getattr(gemini_service, 'last_analysis', None)
@@ -737,8 +746,12 @@ Ensure each outfit lists at least one item id.
     
     @app.route('/uploads/<path:filename>')
     def serve_upload(filename):
-        """Serve uploaded files"""
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        """Serve uploaded files with caching"""
+        response = send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        # Add cache headers for static images (30 days)
+        response.cache_control.max_age = 2592000  # 30 days in seconds
+        response.cache_control.public = True
+        return response
 
     # --- Virality Features (Style Duels) ---
     
@@ -817,16 +830,26 @@ Ensure each outfit lists at least one item id.
     def vote_entry():
         """Vote for an entry"""
         try:
+            user_id = int(get_jwt_identity())
             data = request.get_json()
-            entry_id = data.get('entry_id')
-            
+
+            # Validate entry_id
+            try:
+                entry_id = int(data.get('entry_id', -1))
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid entry_id'}), 400
+
             entry = ChallengeEntry.query.get(entry_id)
             if not entry:
                 return jsonify({'error': 'Entry not found'}), 404
-            
+
+            # Prevent voting for own entry
+            if entry.user_id == user_id:
+                return jsonify({'error': 'Cannot vote for your own entry'}), 400
+
             entry.votes += 1
             db.session.commit()
-            
+
             return jsonify({'message': 'Vote recorded'}), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -933,8 +956,8 @@ Ensure each outfit lists at least one item id.
             # Clean up old temp file
             try:
                 os.remove(filepath)
-            except:
-                pass
+            except (FileNotFoundError, OSError):
+                pass  # File already deleted or permission issue
             
             return jsonify({
                 'message': 'Image refined',
@@ -996,12 +1019,31 @@ Ensure each outfit lists at least one item id.
                 return jsonify({'error': 'URL required'}), 400
             
             # Validate URL format
-            if not url.startswith('http'):
+            if not url.startswith('http://') and not url.startswith('https://'):
                 return jsonify({'error': 'Please enter a valid URL starting with http:// or https://'}), 400
-            
+
+            # SSRF Protection: Block private/internal IPs
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            hostname = parsed.hostname
+            if hostname:
+                hostname_lower = hostname.lower()
+                # Block localhost and common internal hostnames
+                blocked_hosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1', 'internal', 'intranet']
+                if hostname_lower in blocked_hosts or hostname_lower.endswith('.local'):
+                    return jsonify({'error': 'Invalid URL: internal addresses not allowed'}), 400
+                # Block private IP ranges
+                try:
+                    import ipaddress
+                    ip = ipaddress.ip_address(hostname)
+                    if ip.is_private or ip.is_loopback or ip.is_reserved:
+                        return jsonify({'error': 'Invalid URL: private/internal addresses not allowed'}), 400
+                except ValueError:
+                    pass  # Not an IP address, hostname is fine
+
             # Scraping with multiple strategies
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10, allow_redirects=False)
             soup = BeautifulSoup(response.content, 'html.parser')
             
             img_url = None

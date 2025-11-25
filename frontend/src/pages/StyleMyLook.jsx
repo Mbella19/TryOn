@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import api from '../services/api'
-import axios from 'axios'
 import NeoButton from '../components/ui/NeoButton'
 import NeoInput from '../components/ui/NeoInput'
 import NeoCard from '../components/ui/NeoCard'

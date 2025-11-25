@@ -72,6 +72,7 @@ function SavedLooks() {
                     src={`/${look.result_filepath}`}
                     alt="Saved look"
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                 </div>
                 <div className="flex gap-2 mt-auto">

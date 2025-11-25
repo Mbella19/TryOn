@@ -30,12 +30,17 @@ def _build_db_uri() -> str:
 
 class Config:
     """Base configuration"""
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-this')
+    SECRET_KEY = os.getenv('SECRET_KEY')
     SQLALCHEMY_DATABASE_URI = _build_db_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
+
     # JWT Configuration
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'jwt-secret-key-change-this')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+
+    @staticmethod
+    def init_app(app):
+        """Validate required configuration"""
+        pass
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
     JWT_TOKEN_LOCATION = ['headers']
     JWT_HEADER_NAME = 'Authorization'
@@ -56,11 +61,22 @@ class DevelopmentConfig(Config):
     """Development configuration"""
     DEBUG = True
     FLASK_ENV = 'development'
+    # Allow defaults only in development
+    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-prod')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'jwt-dev-key-change-in-prod')
 
 class ProductionConfig(Config):
-    """Production configuration"""
+    """Production configuration - requires all secrets to be set"""
     DEBUG = False
     FLASK_ENV = 'production'
+
+    @staticmethod
+    def init_app(app):
+        """Validate required secrets are set in production"""
+        required = ['SECRET_KEY', 'JWT_SECRET_KEY', 'GOOGLE_API_KEY']
+        missing = [key for key in required if not os.getenv(key)]
+        if missing:
+            raise ValueError(f"Missing required environment variables for production: {', '.join(missing)}")
 
 config = {
     'development': DevelopmentConfig,

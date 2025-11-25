@@ -208,6 +208,7 @@ function Wardrobe() {
                     src={`/uploads/clothing/${item.filename}`}
                     alt={item.category}
                     className="w-full h-full object-cover"
+                    loading="lazy"
                   />
                   <button
                     onClick={() => handleDelete(item.id)}
