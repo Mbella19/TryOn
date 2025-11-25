@@ -4,6 +4,9 @@
 echo "Stopping existing services..."
 lsof -ti:5001 | xargs kill -9 2>/dev/null
 lsof -ti:3000 | xargs kill -9 2>/dev/null
+# Also kill any python process running app.py to be safe
+pkill -f "python3.11 app.py" 2>/dev/null
+pkill -f "python3 app.py" 2>/dev/null
 
 # Start Backend
 echo "Starting Backend..."

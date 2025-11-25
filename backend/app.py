@@ -21,7 +21,30 @@ def create_app(config_name='development'):
     app.config.from_object(config[config_name])
     
     # Initialize extensions
+    # Initialize extensions
+    # Configure SQLite for better concurrency
+    if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'connect_args': {'timeout': 30}
+        }
+        
     db.init_app(app)
+    
+    # Enable WAL mode
+    with app.app_context():
+        try:
+            from sqlalchemy import event
+            from sqlalchemy.engine import Engine
+            
+            @event.listens_for(Engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.close()
+        except Exception as e:
+            print(f"⚠️ Failed to set SQLite PRAGMAs: {e}")
+
     bcrypt.init_app(app)
     jwt = JWTManager(app)
     CORS(app, resources={
@@ -35,14 +58,19 @@ def create_app(config_name='development'):
     # JWT error handlers
     @jwt.unauthorized_loader
     def unauthorized_callback(callback):
+        print(f"❌ JWT Unauthorized: {callback}")
+        print(f"🔍 Headers: {request.headers}")
         return jsonify({'error': 'Missing or invalid authorization token'}), 401
     
     @jwt.invalid_token_loader
     def invalid_token_callback(callback):
+        print(f"❌ JWT Invalid Token: {callback}")
+        print(f"🔍 Headers: {request.headers}")
         return jsonify({'error': 'Invalid authorization token'}), 401
     
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
+        print(f"❌ JWT Expired: {jwt_header} - {jwt_payload}")
         return jsonify({'error': 'Token has expired'}), 401
     
     # Create upload directories
